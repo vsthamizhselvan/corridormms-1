@@ -1,0 +1,76 @@
+name: Release CorridorKey 2.0 Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            os_name: 'macOS-AppleSilicon'
+            bundle_ext: 'dmg'
+          - platform: 'windows-latest'
+            target: 'x86_64-pc-windows-msvc'
+            os_name: 'Windows-x64'
+            bundle_ext: 'exe'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'apps/desktop/package-lock.json'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install macOS Build Dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install ffmpeg
+
+      - name: Install Windows Build Dependencies
+        if: runner.os == 'Windows'
+        run: |
+          choco install ffmpeg
+
+      - name: Install Frontend Dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Build Desktop Application (Tauri 2)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: './apps/desktop'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'CorridorKey 2.0 Desktop ${{ github.ref_name }}'
+          releaseBody: |
+            CorridorKey 2.0 Desktop Release ${{ github.ref_name }}
+            
+            ### Included Builds:
+            - **Windows 10/11 (x64)**: Standalone NSIS installer with NVIDIA CUDA acceleration support.
+            - **macOS (Apple Silicon M1-M5)**: DMG with Apple Metal (MPS) acceleration and VideoToolbox.
+          releaseDraft: false
+          prerelease: false

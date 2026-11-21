@@ -1,0 +1,57 @@
+name: CorridorKey 2.0 Desktop CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-frontend:
+    name: Frontend TypeScript & Vite Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'apps/desktop/package.json'
+      - name: Install dependencies
+        working-directory: apps/desktop
+        run: npm install
+      - name: TypeScript Check & Vite Production Build
+        working-directory: apps/desktop
+        run: npm run build
+
+  validate-rust-backend:
+    name: Tauri 2 Rust Backend Checks
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cargo Check
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+  validate-python-engine:
+    name: Python Engine & Verification Suites
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install Dependencies
+        run: |
+          brew install ffmpeg
+          python -m pip install --upgrade pip
+          pip install torch numpy safetensors huggingface_hub
+      - name: Run Master Phase 11 QA & Release Validation Suite
+        run: python tests/verify_phase11.py
